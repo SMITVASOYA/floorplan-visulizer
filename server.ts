@@ -6,6 +6,7 @@
 import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
 import express from 'express';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
@@ -404,8 +405,13 @@ app.post('/api/ollama-status', async (req, res) => {
 // Start server with Vite middleware in development
 async function startServer() {
   const isProd = process.env.NODE_ENV === 'production';
+  const distIndexHtml = path.resolve(__dirname, 'dist', 'index.html');
+  const hasDist = fs.existsSync(distIndexHtml);
 
-  if (!isProd) {
+  if (!isProd || !hasDist) {
+    if (isProd && !hasDist) {
+      console.warn('⚠️ [Production Notice] dist/index.html was not found. Seamlessly falling back to dynamic Vite runtime server.');
+    }
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
@@ -418,7 +424,7 @@ async function startServer() {
       res.sendFile(path.resolve(__dirname, 'presentation.html'));
     });
     app.get('*', (_req, res) => {
-      res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
+      res.sendFile(distIndexHtml);
     });
   }
 
