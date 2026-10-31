@@ -1,0 +1,6 @@
+{
+  "name": "SpatialPlan 3D",
+  "description": "Interactive 2D-to-3D architectural layout visualizer and multi-wing building brochure explorer with dual cloud and offline AI spatial analysis.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
