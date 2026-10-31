@@ -413,6 +413,10 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     app.use(express.static(path.resolve(__dirname, 'dist')));
+    app.use('/presentation_assets', express.static(path.resolve(__dirname, 'presentation_assets')));
+    app.get('/presentation.html', (_req, res) => {
+      res.sendFile(path.resolve(__dirname, 'presentation.html'));
+    });
     app.get('*', (_req, res) => {
       res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
     });
