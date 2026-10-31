@@ -4,6 +4,19 @@
  */
 
 import { BuildingBrochure, FloorPlan } from '../types/architectural.ts';
+import { build30x40ThreeBedroomPlan } from '../services/blueprintSynthesizer.ts';
+
+/**
+ * Preset: 30' x 40' 3-Bedroom Residence (1,200 sq ft)
+ * Reconstructed from architectural blueprint diagram
+ */
+export const PRESET_30x40_3BHK: FloorPlan = {
+  ...build30x40ThreeBedroomPlan(
+    '/6ab6a1ffa198a1a79ace61f2_67ca2328a5aebddb6989e0c8_30x4020Bedroom20Plan.webp',
+    "30' x 40' 3-Bedroom Residence"
+  ),
+  id: 'preset-30x40-3bhk',
+};
 
 /**
  * Preset 1: Modern 2BHK Residence (1,250 sq ft)

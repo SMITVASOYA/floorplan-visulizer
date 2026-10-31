@@ -14,6 +14,7 @@ import {
   RoomDefinition,
 } from './types/architectural.ts';
 import {
+  PRESET_30x40_3BHK,
   PRESET_BUILDING_BROCHURE,
   PRESET_MODERN_2BHK,
   PRESET_PENTHOUSE,
@@ -25,19 +26,21 @@ import { CollapsibleBottomDock } from './components/CollapsibleBottomDock.tsx';
 import { AICopilotDrawer } from './components/AICopilotDrawer.tsx';
 import { PlanUploadModal } from './components/PlanUploadModal.tsx';
 import { RoomInspectorCard } from './components/RoomInspectorCard.tsx';
-import { testOllamaConnection } from './services/aiService.ts';
+import { getAppConfig, testOllamaConnection } from './services/aiService.ts';
+import { FileText, X as CloseIcon } from 'lucide-react';
 
 export default function App() {
   const canvasMountRef = useRef<HTMLDivElement>(null);
   const sceneManagerRef = useRef<SpatialSceneManager | null>(null);
 
-  // Application Data & Presets
+  // Application Data & Presets - include 30x40 3-Bedroom plan as active plan
   const [plans, setPlans] = useState<FloorPlan[]>([
+    PRESET_30x40_3BHK,
     PRESET_MODERN_2BHK,
     PRESET_STUDIO_LOFT,
     PRESET_PENTHOUSE,
   ]);
-  const [currentPlanId, setCurrentPlanId] = useState<string>(PRESET_MODERN_2BHK.id);
+  const [currentPlanId, setCurrentPlanId] = useState<string>(PRESET_30x40_3BHK.id);
   const [brochure] = useState<BuildingBrochure>(PRESET_BUILDING_BROCHURE);
 
   // Visualization States
@@ -56,11 +59,12 @@ export default function App() {
   const [selectedRoom, setSelectedRoom] = useState<RoomDefinition | null>(null);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState<boolean>(false);
   const [isCopilotOpen, setIsCopilotOpen] = useState<boolean>(false);
+  const [isBlueprintOverlayOpen, setIsBlueprintOverlayOpen] = useState<boolean>(true);
 
-  // AI Architecture configuration (Cloud / Ollama / Offline)
-  const [aiProvider, setAIProvider] = useState<AIProvider>('cloud');
+  // AI Architecture configuration (Cloud / Ollama / Offline) - default to Local Ollama with Gemma 4
+  const [aiProvider, setAIProvider] = useState<AIProvider>('ollama');
   const [ollamaEndpoint, setOllamaEndpoint] = useState<string>('http://localhost:11434');
-  const [ollamaModel, setOllamaModel] = useState<string>('gemma2:latest');
+  const [ollamaModel, setOllamaModel] = useState<string>('gemma4:e4b');
   const [isOllamaAvailable, setIsOllamaAvailable] = useState<boolean>(false);
 
   const activePlan = plans.find((p) => p.id === currentPlanId) || plans[0];
@@ -86,9 +90,26 @@ export default function App() {
       setSelectedWingId(wing ? wing.id : null);
     };
 
-    // Test Ollama background check silently
-    testOllamaConnection(ollamaEndpoint).then((res) => {
-      setIsOllamaAvailable(res.available);
+    // Load server runtime config and verify Ollama connectivity
+    getAppConfig().then((cfg) => {
+      if (cfg.defaultProvider) setAIProvider(cfg.defaultProvider);
+      if (cfg.ollamaEndpoint) setOllamaEndpoint(cfg.ollamaEndpoint);
+      if (cfg.ollamaModel) setOllamaModel(cfg.ollamaModel);
+
+      const targetEndpoint = cfg.ollamaEndpoint || 'http://localhost:11434';
+      testOllamaConnection(targetEndpoint).then((res) => {
+        setIsOllamaAvailable(res.available);
+        if (res.available && res.models && res.models.length > 0) {
+          const match = res.models.find(
+            (m) => m === cfg.ollamaModel || m === 'gemma4:e4b' || m.includes('gemma4')
+          );
+          if (match) {
+            setOllamaModel(match);
+          } else if (res.models[0]) {
+            setOllamaModel(res.models[0]);
+          }
+        }
+      });
     });
 
     return () => {
@@ -266,6 +287,49 @@ export default function App() {
         onClose={() => setIsUploadModalOpen(false)}
         onGeneratePlan={handleGeneratedPlan}
       />
+
+      {/* 2D Blueprint Reference Picture-in-Picture Card */}
+      {mode === 'floorplan' && activePlan.preview2DUrl && (
+        <div className="fixed bottom-24 left-5 z-20 flex flex-col items-start gap-1.5 pointer-events-auto">
+          {!isBlueprintOverlayOpen ? (
+            <button
+              onClick={() => setIsBlueprintOverlayOpen(true)}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-amber-500/40 text-amber-300 text-xs font-medium shadow-2xl backdrop-blur-md transition-all"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>Show 2D Blueprint</span>
+            </button>
+          ) : (
+            <div className="relative p-2.5 rounded-xl bg-slate-950/95 border border-white/15 shadow-2xl backdrop-blur-md w-72 sm:w-80 overflow-hidden animate-in fade-in duration-200">
+              <div className="flex items-center justify-between pb-1.5 border-b border-white/10 mb-2">
+                <div className="flex items-center gap-1.5 text-xs text-slate-200 font-semibold truncate">
+                  <FileText className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="truncate">{activePlan.name} (2D)</span>
+                </div>
+                <button
+                  onClick={() => setIsBlueprintOverlayOpen(false)}
+                  className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-800 transition-colors"
+                >
+                  <CloseIcon className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              <div className="rounded-lg overflow-hidden bg-white/95 border border-slate-700/50 p-1 flex items-center justify-center">
+                <img
+                  src={activePlan.preview2DUrl}
+                  alt="Original 2D Architectural Blueprint"
+                  className="max-h-48 w-auto object-contain"
+                />
+              </div>
+
+              <div className="flex items-center justify-between pt-2 text-[10px] text-slate-400 font-mono">
+                <span>{activePlan.totalAreaSqFt} sq ft · {activePlan.bedroomsCount} BHK</span>
+                <span className="text-amber-400 font-medium">1:1 Spatial 3D Sync</span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

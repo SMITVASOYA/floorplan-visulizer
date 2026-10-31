@@ -80,11 +80,20 @@ export const AICopilotDrawer: React.FC<AICopilotDrawerProps> = ({
   // Ollama test state
   const [ollamaStatus, setOllamaStatus] = useState<{ available: boolean; message: string; models: string[] }>({
     available: false,
-    message: 'Untested',
+    message: 'Testing...',
     models: [],
   });
 
-  // Fetch or compute spatial analysis whenever floor plan or provider changes
+  // Automatically check Ollama status when drawer opens or endpoint changes
+  useEffect(() => {
+    if (isOpen) {
+      testOllamaConnection(ollamaEndpoint).then((res) => {
+        setOllamaStatus(res);
+      });
+    }
+  }, [isOpen, ollamaEndpoint]);
+
+  // Fetch or compute spatial analysis whenever floor plan, provider, or model changes
   useEffect(() => {
     let isCancelled = false;
     const runAnalysis = async () => {
@@ -102,7 +111,7 @@ export const AICopilotDrawer: React.FC<AICopilotDrawerProps> = ({
     return () => {
       isCancelled = true;
     };
-  }, [floorPlan.id, aiProvider]);
+  }, [floorPlan.id, aiProvider, ollamaModel]);
 
   useEffect(() => {
     if (chatScrollRef.current) {
@@ -442,8 +451,8 @@ export const AICopilotDrawer: React.FC<AICopilotDrawerProps> = ({
                 },
                 {
                   id: 'ollama',
-                  title: 'Local Ollama Daemon (Offline)',
-                  desc: 'Runs directly against your localhost Ollama installation (e.g. gemma2, llama3) for 100% offline environments.',
+                  title: 'Local Ollama Daemon (Gemma 4 / Offline)',
+                  desc: 'Runs directly against your localhost Ollama installation (e.g. gemma4:e4b) for private, zero-cost, GPU-accelerated spatial AI.',
                 },
                 {
                   id: 'heuristics',
@@ -472,10 +481,26 @@ export const AICopilotDrawer: React.FC<AICopilotDrawerProps> = ({
             {/* Ollama Configuration Section */}
             {aiProvider === 'ollama' && (
               <div className="p-3.5 rounded-xl bg-slate-900/80 border border-white/8 space-y-3">
-                <h4 className="font-semibold text-slate-200 flex items-center gap-1.5">
-                  <Cpu className="w-4 h-4 text-sky-400" />
-                  <span>Local Ollama Endpoint Configuration</span>
-                </h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="font-semibold text-slate-200 flex items-center gap-1.5 text-xs">
+                    <Cpu className="w-4 h-4 text-sky-400" />
+                    <span>Local Ollama Configuration</span>
+                  </h4>
+                  <span
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                      ollamaStatus.available
+                        ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                        : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                    }`}
+                  >
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        ollamaStatus.available ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
+                      }`}
+                    />
+                    {ollamaStatus.available ? 'Ollama Online' : 'Check Daemon'}
+                  </span>
+                </div>
 
                 <div>
                   <label className="block text-slate-400 text-[11px] mb-1">Daemon Endpoint URL</label>
@@ -488,14 +513,40 @@ export const AICopilotDrawer: React.FC<AICopilotDrawerProps> = ({
                   />
                 </div>
 
+                {/* Available Models Quick Selection */}
+                {ollamaStatus.models && ollamaStatus.models.length > 0 && (
+                  <div>
+                    <label className="block text-slate-400 text-[11px] mb-1.5">
+                      Detected Local Models ({ollamaStatus.models.length})
+                    </label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {ollamaStatus.models.map((m) => (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => onOllamaModelChange(m)}
+                          className={`px-2.5 py-1 rounded text-xs font-mono transition-colors flex items-center gap-1.5 ${
+                            ollamaModel === m
+                              ? 'bg-sky-500/25 text-sky-300 border border-sky-400/50 shadow-sm'
+                              : 'bg-slate-950 border border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+                          }`}
+                        >
+                          <span>{m}</span>
+                          {ollamaModel === m && <Check className="w-3 h-3 text-sky-400" />}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div>
-                  <label className="block text-slate-400 text-[11px] mb-1">Ollama Model Name</label>
+                  <label className="block text-slate-400 text-[11px] mb-1">Active Model Name</label>
                   <input
                     type="text"
                     value={ollamaModel}
                     onChange={(e) => onOllamaModelChange(e.target.value)}
                     className="w-full px-3 py-1.5 rounded bg-slate-950 border border-slate-700 text-slate-100 font-mono text-xs focus:outline-none focus:border-amber-400"
-                    placeholder="gemma2:latest or gemma:7b"
+                    placeholder="gemma4:e4b"
                   />
                 </div>
 
@@ -504,9 +555,11 @@ export const AICopilotDrawer: React.FC<AICopilotDrawerProps> = ({
                     onClick={handleTestOllama}
                     className="px-3 py-1.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/40 hover:bg-sky-500/30 font-medium text-xs transition-colors"
                   >
-                    Test Connectivity
+                    Test Connection
                   </button>
-                  <span className="text-[11px] font-mono text-slate-400">{ollamaStatus.message}</span>
+                  <span className="text-[10px] font-mono text-slate-400 max-w-[240px] truncate text-right">
+                    {ollamaStatus.message}
+                  </span>
                 </div>
               </div>
             )}

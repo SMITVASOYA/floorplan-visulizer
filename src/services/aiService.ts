@@ -83,6 +83,33 @@ export function computeOfflineSpatialAnalysis(floorPlan: FloorPlan): AIPlanAnaly
   };
 }
 
+export interface AppConfig {
+  defaultProvider: AIProvider;
+  ollamaEndpoint: string;
+  ollamaModel: string;
+  hasGeminiKey: boolean;
+}
+
+/**
+ * Fetches server-side runtime configuration and environment defaults
+ */
+export async function getAppConfig(): Promise<AppConfig> {
+  try {
+    const res = await fetch('/api/config');
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch {
+    // ignore network failure in purely offline environment
+  }
+  return {
+    defaultProvider: 'ollama',
+    ollamaEndpoint: 'http://localhost:11434',
+    ollamaModel: 'gemma4:e4b',
+    hasGeminiKey: false,
+  };
+}
+
 /**
  * Executes Floor Plan analysis via Cloud (Gemini) or Local Ollama or Offline Heuristics
  */
@@ -90,7 +117,7 @@ export async function analyzeFloorPlanWithAI(
   floorPlan: FloorPlan,
   provider: AIProvider,
   ollamaEndpoint: string = 'http://localhost:11434',
-  ollamaModel: string = 'gemma2:latest',
+  ollamaModel: string = 'gemma4:e4b',
   customImageBase64?: string
 ): Promise<AIPlanAnalysis> {
   if (provider === 'heuristics') {
@@ -138,7 +165,7 @@ export async function queryArchitectChat(
   activeWing: BuildingWing | null,
   provider: AIProvider,
   ollamaEndpoint: string = 'http://localhost:11434',
-  ollamaModel: string = 'gemma2:latest'
+  ollamaModel: string = 'gemma4:e4b'
 ): Promise<string> {
   if (provider === 'heuristics') {
     return generateOfflineChatResponse(userPrompt, floorPlan, activeWing);
